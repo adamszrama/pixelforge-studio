@@ -43,30 +43,36 @@ final class ApplyProviderState
             $generation->needs_review = false;
             $generation->next_attempt_at = now()->addMinute();
             if ($status->isTerminal()) {
-                $cost = $status === GenerationStatus::Succeeded ? Money::tokenCost($object['usage'], $object['rates']) : 0;
-                $charge = Money::markedUp($cost);
-                $completedAt = CarbonImmutable::parse($object['completed_at'])->utc();
-                DB::table('ledger_entries')->insert([
-                    'user_id' => $user->id, 'generation_id' => $generation->id,
-                    'kind' => 'generation', 'amount' => -$charge, 'created_at' => $completedAt,
-                ]);
-                $user->balance -= $charge;
-                $user->reserved -= $generation->reserved_cost;
-                $user->save();
-                $generation->fill([
-                    'provider_cost' => $cost, 'actual_cost' => $charge,
-                    'usage' => $object['usage'] ?? null,
-                    'completed_at' => $completedAt, 'next_attempt_at' => null,
-                    'image_url' => $status === GenerationStatus::Succeeded ? $object['image_url'] : null,
-                    'image_url_expires_at' => $object['image_url_expires_at'] ?? null,
-                    'error_code' => $object['error']['code'] ?? null,
-                    'message' => $object['error']['message'] ?? null,
-                ]);
+                $this->settle($user, $generation, $object);
             }
             $generation->save();
 
             return $generation;
         }, 3);
+    }
+
+    /** The caller holds both wallet and generation locks in one transaction. */
+    private function settle(User $user, Generation $generation, array $object): void
+    {
+        $cost = $generation->status === GenerationStatus::Succeeded ? Money::tokenCost($object['usage'], $object['rates']) : 0;
+        $charge = Money::markedUp($cost);
+        $completedAt = CarbonImmutable::parse($object['completed_at'])->utc();
+        DB::table('ledger_entries')->insert([
+            'user_id' => $user->id, 'generation_id' => $generation->id,
+            'kind' => 'generation', 'amount' => -$charge, 'created_at' => $completedAt,
+        ]);
+        $user->balance -= $charge;
+        $user->reserved -= $generation->reserved_cost;
+        $user->save();
+        $generation->fill([
+            'provider_cost' => $cost, 'actual_cost' => $charge,
+            'usage' => $object['usage'] ?? null,
+            'completed_at' => $completedAt, 'next_attempt_at' => null,
+            'image_url' => $generation->status === GenerationStatus::Succeeded ? $object['image_url'] : null,
+            'image_url_expires_at' => $object['image_url_expires_at'] ?? null,
+            'error_code' => $object['error']['code'] ?? null,
+            'message' => $object['error']['message'] ?? null,
+        ]);
     }
 
     public function reject(Generation $generation, string $code, string $message): void

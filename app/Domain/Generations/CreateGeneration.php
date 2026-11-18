@@ -10,6 +10,8 @@ use Illuminate\Validation\ValidationException;
 
 final class CreateGeneration
 {
+    public function __construct(private Quote $quote) {}
+
     public function execute(User $user, array $input, array $pricing): Generation
     {
         return DB::transaction(function () use ($user, $input, $pricing) {
@@ -23,7 +25,7 @@ final class CreateGeneration
 
                 return $existing;
             }
-            $quote = app(Quote::class)->calculate($input, $pricing);
+            $quote = $this->quote->calculate($input, $pricing);
             if ($lockedUser->balance - $lockedUser->reserved < $quote['maximum']) {
                 throw ValidationException::withMessages(['credits' => 'Add credits to cover the maximum estimated cost.']);
             }

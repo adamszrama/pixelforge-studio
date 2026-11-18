@@ -11,7 +11,6 @@ use App\Domain\Generations\GenerationStatus;
 use App\Jobs\SyncGeneration;
 use App\Models\Generation;
 use App\Models\User;
-use App\Services\Pixelforge\PixelforgeClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\DB;
@@ -319,8 +318,38 @@ class GenerationAccountingTest extends TestCase
             ->where('totals.profit', '0.076377500000'));
     }
 
+    public function test_resume_preserves_uncertain_acceptance_and_the_original_request(): void
+    {
+        Queue::fake();
+        $generation = $this->generation();
+        $generation->update(['needs_review' => true, 'acceptance_uncertain' => true, 'submission_attempts' => 8]);
+
+        $this->artisan('pixelforge:resume', ['id' => $generation->id])->assertSuccessful();
+
+        $resumed = $generation->fresh();
+        $this->assertFalse($resumed->needs_review);
+        $this->assertTrue($resumed->acceptance_uncertain);
+        $this->assertSame(0, $resumed->submission_attempts);
+        $this->assertSame($generation->prompt, $resumed->prompt);
+        $this->assertSame($generation->reserved_cost, $this->user->fresh()->reserved);
+        Queue::assertPushed(SyncGeneration::class, fn ($job) => $job->generationId === $generation->id);
+    }
+
+    public function test_resume_cannot_restart_a_settled_generation(): void
+    {
+        Queue::fake();
+        $generation = $this->generation();
+        app(ApplyProviderState::class)->execute($this->object($generation));
+
+        $this->artisan('pixelforge:resume', ['id' => $generation->id])->assertFailed();
+
+        Queue::assertNothingPushed();
+        $this->assertSame(GenerationStatus::Succeeded, $generation->fresh()->status);
+        $this->assertDatabaseCount('ledger_entries', 1);
+    }
+
     private function runJob(Generation $g): void
     {
-        (new SyncGeneration($g->id))->handle(app(PixelforgeClient::class), app(ApplyProviderState::class));
+        app()->call([new SyncGeneration($g->id), 'handle']);
     }
 }
