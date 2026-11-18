@@ -14,9 +14,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::define('viewReports', fn (User $user) => (bool) $user->is_admin);
-        RateLimiter::for('login', fn (Request $request) => [
-            Limit::perMinute(5)->by(mb_strtolower((string) $request->input('email')).'|'.$request->ip()),
-            Limit::perMinute(30)->by($request->ip()),
-        ]);
+        RateLimiter::for('login', function (Request $request): array {
+            $email = $request->input('email');
+            $identifier = is_string($email) ? mb_strtolower($email) : '';
+
+            return [
+                Limit::perMinute(5)->by($identifier.'|'.$request->ip()),
+                Limit::perMinute(30)->by($request->ip()),
+            ];
+        });
     }
 }

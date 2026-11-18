@@ -30,6 +30,14 @@ class AuthTest extends TestCase
         $this->post('/credits')->assertRedirect('/login');
     }
 
+    public function test_malformed_email_reaches_validation_without_crashing_the_limiter(): void
+    {
+        $this->postJson('/login', ['email' => [], 'password' => 'invalid'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+        $this->assertGuest();
+    }
+
     public function test_login_logout_and_invalid_credentials(): void
     {
         $user = User::factory()->create();
