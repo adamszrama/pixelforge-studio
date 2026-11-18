@@ -93,6 +93,8 @@ npm run build
 npx prettier --check resources/js resources/css vite.config.js
 ```
 
+The `Unit` suite tests money and quote arithmetic without bootstrapping Laravel (`vendor/bin/phpunit --testsuite=Unit`). HTTP, queue, command, and accounting behavior is covered by the `Feature` suite.
+
 The default test run uses in-memory SQLite; two concurrent locking tests require PostgreSQL and `pcntl`. CI runs the entire suite on both databases. To run the PostgreSQL version locally against a **dedicated disposable test database**:
 
 ```sh

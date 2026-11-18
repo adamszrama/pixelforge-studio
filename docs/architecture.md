@@ -4,9 +4,13 @@
 
 `Money` owns exact conversion and token arithmetic. `Quote` owns the published estimation rules. `CreateGeneration` owns request deduplication and the initial reservation. `ApplyProviderState` is the only provider-state settlement path. `Wallet` owns fake purchases. The HTTP client knows the wire contract but does not mutate accounting state.
 
-`SyncGeneration` makes one provider call per job. It does not sleep inside a worker or hold database locks across network calls. A persisted `next_attempt_at` drives subsequent attempts. The scheduler recovers pending work from durable generation rows instead of assuming dispatch always succeeds.
+`SyncGeneration` owns queue configuration and overlap protection. It delegates to `SynchronizeGeneration`, which makes one provider call per job. It does not sleep inside a worker or hold database locks across network calls. A persisted `next_attempt_at` drives subsequent attempts. The scheduler recovers pending work from durable generation rows instead of assuming dispatch always succeeds.
 
-The webhook controller verifies the raw-body HMAC, then performs only a short database transaction. It never calls Pixelforge. Event insertion and application are atomic; a failure rolls both back so redelivery can succeed. Unmatched events remain in an inbox until a later reconciliation pass can correlate them.
+`VerifyPixelforgeSignature` middleware authenticates the raw-body HMAC before `PixelforgeWebhookRequest` validates the signed JSON. Query parameters and Laravel input normalization cannot alter the event. The controller delegates to `ReceiveWebhook`, which performs only a short database transaction and never calls Pixelforge. Event insertion and application are atomic; a failure rolls both back so redelivery can succeed. Unmatched events remain in an inbox until a later reconciliation pass can correlate them.
+
+HTTP controllers use Form Requests for validation and return responses. `GenerationResource` defines the history representation, while `BuildSpendReport` aggregates charges and compares provider usage. `ReportRequest` owns authorization and date-range validation.
+
+Artisan commands live in `app/Console/Commands`. `SyncGenerations` reuses `ReceiveWebhook` for inbox recovery before dispatching due work. `ResumeGeneration` preserves the original request UUID and acceptance uncertainty when resetting the retry budget. Queue job class names and serialized properties remain stable across deployments.
 
 ## Lifecycle
 
