@@ -3,14 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Billing\Wallet;
-use Illuminate\Http\Request;
+use App\Http\Requests\PurchaseCreditsRequest;
+use Illuminate\Http\RedirectResponse;
 
 final class CreditController
 {
-    public function __invoke(Request $request, Wallet $wallet)
+    public function __invoke(PurchaseCreditsRequest $request, Wallet $wallet): RedirectResponse
     {
-        $input = $request->validate(['purchase_id' => 'required|uuid']);
-        $wallet->purchase($request->user(), $input['purchase_id']);
+        $wallet->purchase($request->user(), $request->validated('purchase_id'));
 
         return back()->with('success', '$10 in demo credits added. No real payment.');
     }

@@ -6,31 +6,30 @@ use App\Domain\Billing\Money;
 use App\Domain\Billing\Quote;
 use App\Domain\Generations\CreateGeneration;
 use App\Http\Requests\GenerationRequest;
+use App\Http\Resources\GenerationResource;
 use App\Jobs\SyncGeneration;
 use App\Models\Generation;
 use App\Services\Pixelforge\PixelforgeClient;
 use Illuminate\Http\Client\HttpClientException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
 final class GenerationController
 {
-    public function index(Request $request)
+    public function index(Request $request): Response
     {
-        $generations = Generation::where('user_id', $request->user()->id)->latest()->paginate(12)->through(fn (Generation $g) => [
-            'id' => $g->id, 'prompt' => $g->prompt, 'status' => $g->status->value,
-            'size' => $g->size, 'quality' => $g->quality,
-            'estimated_cost' => Money::usd($g->estimated_cost),
-            'actual_cost' => $g->actual_cost === null ? null : Money::usd($g->actual_cost),
-            'image_url' => $g->image_url, 'image_expired' => $g->image_url_expires_at?->isPast() ?? false,
-            'message' => $g->message, 'needs_review' => $g->needs_review,
-            'created_at' => $g->created_at->toIso8601String(),
-        ]);
+        $generations = $request->user()->generations()
+            ->latest()
+            ->paginate(12)
+            ->through(fn (Generation $generation): array => (new GenerationResource($generation))->resolve($request));
 
         return Inertia::render('Studio', ['generations' => $generations]);
     }
 
-    public function quote(GenerationRequest $request, PixelforgeClient $client, Quote $quote)
+    public function quote(GenerationRequest $request, PixelforgeClient $client, Quote $quote): JsonResponse
     {
         try {
             $pricing = $client->pricing();
@@ -45,7 +44,7 @@ final class GenerationController
         ]);
     }
 
-    public function store(GenerationRequest $request, PixelforgeClient $client, CreateGeneration $create)
+    public function store(GenerationRequest $request, PixelforgeClient $client, CreateGeneration $create): RedirectResponse
     {
         if (! config('pixelforge.api_key')) {
             return back()->withErrors(['provider' => 'An operator must configure the Pixelforge connection first.']);
