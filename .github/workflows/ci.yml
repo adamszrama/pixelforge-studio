@@ -41,6 +41,7 @@ jobs:
           DB_USERNAME: studio
           DB_PASSWORD: testing-only
       - run: npm ci
+      - run: npm run test:unit
       - run: npm run typecheck
       - run: npm run build
       - run: npx prettier --check resources/js resources/css vite.config.js
