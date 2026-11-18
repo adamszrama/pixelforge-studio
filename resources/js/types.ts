@@ -13,6 +13,9 @@ export type Generation = {
   quality: string;
   estimated_cost: string;
   actual_cost: string | null;
+  reference_images: string[];
+  download_url: string;
+  image_url_expires_at: string | null;
   image_url: string | null;
   image_expired: boolean;
   message: string | null;
@@ -26,6 +29,13 @@ export type Pagination<T> = {
 };
 export type Totals = { count: number; spend: string; provider: string; profit: string };
 
-// Display only: accounting and every charge are calculated exactly on the server.
-export const money = (amount: string | null, digits = 6) =>
-  amount === null ? '—' : digits === 12 ? `$${amount}` : `$${Number(amount).toFixed(digits)}`;
+// Display only: exact accounting remains on the server. Full values are available in details.
+export const money = (amount: string | null, digits?: number): string => {
+  if (amount === null) return '—';
+  if (digits === 12) return `$${amount}`;
+  const value = Number(amount);
+  if (value === 0) return '$0.00';
+  if (digits !== undefined) return `$${value.toFixed(digits)}`;
+  if (Math.abs(value) < 0.0001) return value < 0 ? '−<$0.0001' : '<$0.0001';
+  return `$${value.toFixed(Math.abs(value) < 1 ? 4 : 2)}`;
+};

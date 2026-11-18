@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm, usePage, usePoll } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage, usePoll } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import Shell from '../Components/Shell.vue';
+import GenerationCard from '../Components/GenerationCard.vue';
+import ImagePreview from '../Components/ImagePreview.vue';
+import MoneyAmount from '../Components/MoneyAmount.vue';
 import type { Auth, Generation, Pagination } from '../types';
 import { money } from '../types';
 const props = defineProps<{ generations: Pagination<Generation> }>();
@@ -17,7 +20,7 @@ const references = ref('');
 const quote = ref<{ estimate: string; maximum: string } | null>(null);
 const quoteError = ref('');
 const quoting = ref(false);
-const brokenImages = ref(new Set<string>());
+const preview = ref<Generation | null>(null);
 const auth = computed(() => page.props.auth as Auth);
 const canAfford = computed(
   () => quote.value && Number(auth.value.available) >= Number(quote.value.maximum),
@@ -97,6 +100,7 @@ function reuse(g: Generation) {
   form.prompt = g.prompt;
   form.size = g.size;
   form.quality = g.quality;
+  references.value = g.reference_images.join('\n');
   form.request_id = crypto.randomUUID();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -107,9 +111,9 @@ function reuse(g: Generation) {
     <main class="studio-main">
       <section class="page-heading">
         <div>
-          <div class="eyebrow">FROM A THOUGHT TO A THOUSAND PIXELS</div>
-          <h1>What do you <em>imagine?</em></h1>
-          <p>Describe it. Make it. See where it takes you.</p>
+          <div class="eyebrow">YOUR CREATIVE WORKSPACE</div>
+          <h1>From an idea.<br /><em>To something yours.</em></h1>
+          <p>Turn a thought into an image. Explore, refine, and make it your own.</p>
         </div>
         <span class="studio-label"><span class="dot"></span> YOUR PERSONAL STUDIO</span>
       </section>
@@ -117,7 +121,7 @@ function reuse(g: Generation) {
         <section class="composer card">
           <div class="section-title">
             <h2>Create an image</h2>
-            <span>01 / THE IDEA</span>
+            <span>MAKE SOMETHING NEW</span>
           </div>
           <form @submit.prevent="submit">
             <label for="prompt">Your prompt</label>
@@ -180,12 +184,21 @@ function reuse(g: Generation) {
                 }}</strong>
               </div>
               <p v-if="quote">
-                Up to {{ money(quote.maximum) }} reserved at current rates. Final charge uses actual
-                tokens and the provider’s creation-time rates, plus 25%.
+                We reserve up to {{ money(quote.maximum) }}. You only pay for the tokens used, plus
+                25%.
               </p>
               <p v-else>
                 {{ quoteError || 'Add a prompt to see your estimate before generating.' }}
               </p>
+              <details v-if="quote" class="cost-details">
+                <summary>See exact amounts</summary>
+                <dl>
+                  <dt>Estimate</dt>
+                  <dd><MoneyAmount :amount="quote.estimate" exact /></dd>
+                  <dt>Reservation</dt>
+                  <dd><MoneyAmount :amount="quote.maximum" exact /></dd>
+                </dl>
+              </details>
               <p>Failed generations are free. Unused reserved credits return automatically.</p>
             </div>
             <div v-if="Object.keys(form.errors).length" class="error-box" role="alert">
@@ -209,7 +222,7 @@ function reuse(g: Generation) {
               <h2>
                 Your creations <span class="count">{{ generations.total }}</span>
               </h2>
-              <p>A little collection of your imagination.</p>
+              <p>Your ideas, brought to life. Ready to explore and download.</p>
             </div>
             <span class="live"
               ><span class="dot"></span
@@ -238,78 +251,13 @@ function reuse(g: Generation) {
             </button>
           </div>
           <div v-else class="generation-grid">
-            <article v-for="g in generations.data" :key="g.id" class="generation-card">
-              <div class="image-frame" :class="g.status">
-                <img
-                  v-if="g.image_url && !g.image_expired && !brokenImages.has(g.id)"
-                  :src="g.image_url"
-                  :alt="g.prompt"
-                  loading="lazy"
-                  referrerpolicy="no-referrer"
-                  @error="brokenImages.add(g.id)"
-                />
-                <div v-else class="image-placeholder">
-                  <span
-                    v-if="g.status === 'processing' || g.status === 'queued'"
-                    class="spinner"
-                  ></span
-                  ><span v-else class="placeholder-symbol">{{
-                    g.status === 'failed' ? '↻' : '◈'
-                  }}</span
-                  ><b>{{
-                    g.status === 'failed'
-                      ? 'A fresh start?'
-                      : g.status === 'succeeded'
-                        ? 'Image link expired'
-                        : g.needs_review
-                          ? 'Checking your request'
-                          : g.status === 'processing'
-                            ? 'Bringing it to life'
-                            : 'An idea in the queue'
-                  }}</b
-                  ><small>{{
-                    g.status === 'failed'
-                      ? 'No credits charged'
-                      : g.status === 'succeeded'
-                        ? 'Provider images are available for 24 hours.'
-                        : 'You can leave this page. We’ll keep working.'
-                  }}</small>
-                </div>
-                <span class="status-badge" :class="g.status">{{ g.status }}</span>
-              </div>
-              <div class="generation-info">
-                <p class="generation-prompt" :title="g.prompt">{{ g.prompt }}</p>
-                <div class="generation-meta">
-                  <span>{{ g.quality }} · {{ g.size.replace('x', ' × ') }}</span
-                  ><time :datetime="g.created_at">{{
-                    new Date(g.created_at).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  }}</time>
-                </div>
-                <p
-                  v-if="g.message"
-                  class="generation-message"
-                  :class="{ failure: g.status === 'failed' }"
-                >
-                  {{ g.message }}
-                </p>
-                <div class="cost-row">
-                  <div>
-                    <small>Estimate</small
-                    ><span :title="g.estimated_cost">{{ money(g.estimated_cost) }}</span>
-                  </div>
-                  <div>
-                    <small>Actual</small
-                    ><strong :title="g.actual_cost || 'Awaiting final usage'">{{
-                      money(g.actual_cost)
-                    }}</strong>
-                  </div>
-                  <button class="reuse" @click="reuse(g)" title="Reuse this prompt">↗</button>
-                </div>
-              </div>
-            </article>
+            <GenerationCard
+              v-for="g in generations.data"
+              :key="g.id"
+              :generation="g"
+              @reuse="reuse"
+              @preview="preview = $event"
+            />
           </div>
           <nav v-if="generations.total > 12" class="pagination" aria-label="History pages">
             <template v-for="(link, i) in generations.links" :key="i"
@@ -324,6 +272,6 @@ function reuse(g: Generation) {
           </nav>
         </section>
       </div>
-    </main></Shell
-  >
+      <ImagePreview :generation="preview" @close="preview = null" /></main
+  ></Shell>
 </template>

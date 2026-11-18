@@ -44,7 +44,7 @@ function buy() {
       </nav>
       <div v-if="auth" class="account">
         <div class="wallet" :title="`Balance ${auth.balance} USD; reserved ${auth.reserved} USD`">
-          <span class="dot"></span>{{ money(auth.available, 4) }}<small> available</small>
+          <span class="dot"></span>{{ money(auth.available) }}<small> available</small>
         </div>
         <button class="button small secondary" :disabled="buying" @click="buy">
           {{ buying ? 'Adding…' : '+ Buy credits' }}</button><button
