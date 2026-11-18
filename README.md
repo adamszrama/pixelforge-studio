@@ -1,5 +1,7 @@
 # Pixelforge Studio
 
+[Live application](https://pixelforge-studio-45724412085.europe-central2.run.app) · [CI](https://github.com/adamszrama/pixelforge-studio/actions/workflows/ci.yml)
+
 A Laravel, Vue and Inertia image studio built around asynchronous generation and exact token accounting. Users can sign up, add demo credits, see a quote, generate an image and follow its progress. Operators can reconcile daily costs against Pixelforge's own usage endpoint.
 
 ## Stack
